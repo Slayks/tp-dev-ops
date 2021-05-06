@@ -3,7 +3,11 @@
 name: CI
 
 # Controls when the action will run. 
-on: push
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -31,14 +35,14 @@ jobs:
         run: npm install
 
         # Run tests
-      #- name: Run frontend test
-        #run: npm run ci:frontend:test
+      - name: Run frontend test
+        run: npm run ci:frontend:test
 
-      #- name: Run backend test
-        #run: chmod +x mvnw && npm run ci:backend:test
+      - name: Run backend test
+        run: chmod +x mvnw && npm run ci:backend:test
         
-      #- name: Run E2E tests
-        #run: ./mvnw -ntp verify -DskipTests --batch-mode "-Pprod" "-Pe2e" "-Denforcer.skip=true"* && npm run ci:e2e:prepare:docker && npm run ci:e2e:run && npm run ci:e2e:teardown
+      - name: Run E2E tests
+        run: ./mvnw -ntp verify -DskipTests --batch-mode "-Pprod" "-Pe2e" "-Denforcer.skip=true"* && npm run ci:e2e:prepare:docker && npm run ci:e2e:run && npm run ci:e2e:teardown
 
       - name: Deploy app to Heroku
         run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=jhipster-is-so-swag
