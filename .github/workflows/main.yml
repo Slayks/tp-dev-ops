@@ -38,3 +38,7 @@ jobs:
         
       - name: Run E2E tests
         run: ./mvnw -ntp verify -DskipTests --batch-mode "-Pprod" "-Pe2e" "-Denforcer.skip=true"* && npm run ci:e2e:prepare:docker && npm run ci:e2e:run && npm run ci:e2e:teardown
+
+      - name: Deploy app to Heroku
+        run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=jhipster-is-so-swag
+        
