@@ -48,12 +48,6 @@ jobs:
         
       - name: Build prod
         run: npm run webapp:build:prod
-        
-      - name: Upload build result
-        uses: actions/upload-artifact@v2
-        with:
-          name: webapp-build
-          path: target/classes/static
 
   deploy:
     runs-on: ubuntu-latest
@@ -61,15 +55,9 @@ jobs:
     
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+            java-version: '11.x'
       
-      - name: Download build from build job
-        uses: actions/download-artifact@v2
-        with:
-          name: webapp-build
-    
-      - uses: akhileshns/heroku-deploy@v3.12.12 # This is the action
-        with:
-          heroku_api_key: ${{secrets.HEROKU_API_KEY}}
-          heroku_app_name: "jhipster-is-so-swag"
-          heroku_email: ${{secrets.HEROKU_EMAIL}}
-          appdir: "target/classes/static"
+      - name: Deploy app to Heroku
+        run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=jhipster-is-so-swag
