@@ -27,12 +27,6 @@ jobs:
         with:
             java-version: '11.x'
 
-  test_front:
-   # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    needs: init
-    
-    steps:    
         # Install node packages
       - name: Install node.js packages
         run: npm install
@@ -41,26 +35,9 @@ jobs:
       - name: Run frontend test
         run: npm run ci:frontend:test
         
-  test_back:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    needs: init
-    
-    steps:
         # Run tests
       - name: Run backend test
         run: chmod +x mvnw && npm run ci:backend:test
-
-  test_e2e:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    needs: [test_front, test_back]
-    
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps: 
-        # Install node packages
-      - name: Install node.js packages
-        run: npm install
         
       - name: Run E2E tests
         run: |
@@ -68,25 +45,10 @@ jobs:
           npm run ci:e2e:prepare:docker
           npm run ci:e2e:run
           npm run ci:e2e:teardown
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    needs: test_e2e
-
-    steps:            
-        # Install node packages
-      - name: Install node.js packages
-        run: npm install
         
       - name: Build prod
         run: npm run webapp:build:prod
 
-  sonar:
-    runs-on: ubuntu-latest
-    needs: build
-    
-    steps:
       - name: Cache SonarCloud packages
         uses: actions/cache@v1
         with:
@@ -101,11 +63,6 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
       - name: Build and analyze
         run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: sonar
-    
-    steps:
+        
       - name: Deploy app to Heroku
         run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=jhipster-is-so-swag
