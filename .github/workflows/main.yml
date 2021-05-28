@@ -7,149 +7,171 @@ on:
   push:
     branches: [ main ]
 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
   init:
-    runs-on: ubuntu-latest
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      runs-on: ubuntu-latest
+      steps:
+      
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          
       - uses: actions/setup-node@v1
         with:
-            node-version: 14.16.1
+           node-version: 14.16.1
+      - uses: actions/cache@v2.1.5
+        id: cache-node-modules
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      - name: Install node.js packages
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: npm install
+            
       - uses: actions/setup-java@v1
         with:
-            java-version: '11.x'
-            
-      # Install node packages
-      - name: Install node.js packages
-        run: npm install
-        
-      - uses: actions/upload-artifact@v2
-        with:
-          name: my-artifact
-          path: .
+           java-version: '11.x'
 
-  test_front:
-   # The type of runner that the job will run on
+  front:
     runs-on: ubuntu-latest
     needs: init
     
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v2
         with:
-          name: my-artifact
-          
-      # Run tests
-      - name: Run frontend test
+          fetch-depth: 0
+    
+      - uses: actions/cache@v2.1.5
+        id: cache-test-results
+        with:
+          path: 'target/'
+          key: ${{ runner.os }}-target
+          restore-keys: |
+            ${{ runner.os }}-target
+      - name: Unit Tests front
         run: npm run ci:frontend:test
-        
-      - uses: actions/upload-artifact@v2
-        with:
-          name: my-artifact
-          path: .
-        
-  test_back:
-    # The type of runner that the job will run on
+
+  back:
     runs-on: ubuntu-latest
     needs: init
-    
+
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v2
         with:
-          name: my-artifact
-
-        # Run tests
-      - name: Run backend test
+         fetch-depth: 0
+     
+      - uses: actions/cache@v2.1.5
+        id: cache-test-results
+        with:
+          path: 'target/'
+          key: ${{ runner.os }}-target
+          restore-keys: |
+            ${{ runner.os }}-target
+      - name: Unit Tests back
         run: chmod +x mvnw && npm run ci:backend:test
-        
-      - uses: actions/upload-artifact@v2
-        with:
-          name: my-artifact
-          path: .
 
-  test_e2e:
-    # The type of runner that the job will run on
+  e2e:
+    needs: [ front, back ]
     runs-on: ubuntu-latest
-    needs: [test_front, test_back]
-    
+
     env:
       JHI_E2E_HEADLESS: 'true'
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      - uses: actions/download-artifact@v2
-        with:
-          name: my-artifact
-        
-      - name: Run E2E tests
-        run: |
-          ./mvnw -ntp verify -DskipTests --batch-mode "-Pprod" "-Pe2e" "-Denforcer.skip=true"*
-          npm run ci:e2e:prepare:docker
-          npm run ci:e2e:run
-          npm run ci:e2e:teardown
-          
-      - uses: actions/upload-artifact@v2
-        with:
-          name: my-artifact
-          path: .
-      
-  build:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-    needs: test_e2e
 
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v2
         with:
-          name: my-artifact
-        
-      - name: Build prod
-        run: npm run webapp:build:prod
-        
-      - uses: actions/upload-artifact@v2
+          fetch-depth: 0
+
+      - uses: actions/cache@v2.1.5
+        id: cache-node-modules
         with:
-          name: my-artifact
-          path: .
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+            
+      - uses: actions/cache@v2.1.5
+        id: cache-test-results
+        with:
+          path: 'target/'
+          key: ${{ runner.os }}-target
+          restore-keys: |
+            ${{ runner.os }}-target
+            
+      - name: Test integrations
+        run: ./mvnw -ntp verify -DskipTests --batch-mode "-Pprod" "-Pe2e" "-Denforcer.skip=true"* && npm run ci:e2e:prepare:docker && npm run ci:e2e:run && npm run ci:e2e:teardown
 
   sonar:
+    needs: e2e
+    # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    needs: build
-    
+
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v2
         with:
-          name: my-artifact
-          
+          fetch-depth: 0
+      - uses: actions/cache@v2.1.5
+        id: cache-node-modules
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      - uses: actions/cache@v2.1.5
+        id: cache-test-results
+        with:
+          path: 'target/'
+          key: ${{ runner.os }}-target
+          restore-keys: |
+            ${{ runner.os }}-target
       - name: Cache SonarCloud packages
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache Maven packages
-        uses: actions/cache@v1
+        uses: actions/cache@v2.1.5
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
       - name: Build and analyze
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: mvn -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
 
   deploy:
-    runs-on: ubuntu-latest
     needs: sonar
-    
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
     env:
       HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-    
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/download-artifact@v2
+      - uses: actions/checkout@v2
         with:
-          name: my-artifact
-      
-      - name: Deploy app to Heroku
-        run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=jhipster-is-so-swag
+          fetch-depth: 0
+      - uses: actions/cache@v2.1.5
+        id: cache-node-modules
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+      - name: Build prod
+        run: npm run webapp:build:prod
+      - name: Deploying on Heroku
+        run: ./mvnw -ntp com.heroku.sdk:heroku-maven-plugin:2.0.5:deploy -DskipTests -Pprod -Dheroku.buildpacks=heroku/jvm -Dheroku.appName=stark-citadel-71344
